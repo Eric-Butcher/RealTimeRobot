@@ -1,18 +1,30 @@
 #include <Scheduler.h>
 #include <ArduinoBLE.h>
 
+
 /*
- * Values used to determine the speeed at which the respective motor is driven. 
+ * Values used to determine the speed at which the respective motor is driven. 
  * These values will be sent along either the foward or reverse pins depending on the signal from bluetooth. 
  * A possible way to differentiate between forward and reverse signals, is to make reverse values negative, then take the absolute value
  * before sending to pin. 
+ * 
  */
-int MOTOR_1_DRIVE;
-int MOTOR_2_DRIVE;
+int MOTOR_1_DRIVE = 0;
+int MOTOR_2_DRIVE = 0;
 
 /*
- * Noting the pins we use for forward and reverse for each motor
+ * Specifies minimum drive for the motors
+ * Testing revealed values below this fail to drive the motors.
+ * 
+ * Due to this, motors should be at 0 control indicates such.
+ * When controls indicate movement, drive should start and scale from this value. 
+ * 
+ * This determines, a minimum speed, and should be decreased if min speed is too fast. 
+ * 
  */
+int MOTOR_MIN = 70;
+
+bool SAFETY = false;
 
 int MOTOR_1_FWD_PIN = 7;
 int MOTOR_1_RV_PIN = 6;
@@ -29,10 +41,54 @@ const int characteristicIndex1 = 0;
 const int characteristicIndex2 = 1;
 
 
+/*
+ * Takes drive information, and handles motor control with it. 
+ */
+void motor_Driver(){
+
+  
+  while (SAFETY){
+    
+
+    //motor 1 drive
+    if (MOTOR_1_DRIVE < 0){
+      analogWrite(MOTOR_1_FWD_PIN,0);
+      analogWrite(MOTOR_1_RV_PIN,abs(MOTOR_1_DRIVE));
+    } else {
+      analogWrite(MOTOR_1_RV_PIN,0);
+      analogWrite(MOTOR_1_FWD_PIN,MOTOR_1_DRIVE);
+    }
+
+    //motor 2 drive
+    if (MOTOR_2_DRIVE < 0){
+      analogWrite(MOTOR_2_FWD_PIN,0);
+      analogWrite(MOTOR_2_RV_PIN,abs(MOTOR_2_DRIVE));
+    } else {
+      analogWrite(MOTOR_2_RV_PIN,0);
+      analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
+    }
+  
+    
+  }
+  //stop all motor movement if safety fails
+  analogWrite(MOTOR_1_FWD_PIN,0); 
+  analogWrite(MOTOR_1_RV_PIN,0);
+  analogWrite(MOTOR_2_RV_PIN,0);
+  analogWrite(MOTOR_2_FWD_PIN,0);
+  
+}
 
 
 
-
+/*
+ * Maintains connection to bluetooth peripheral, 
+ * and retrieves throttle information. Will continuously update readings
+ * as long as connection holds. 
+ * 
+ * Motor throttle information is stored in drive global variables
+ * 
+ * If connection drops, will return back to BLEconnection to attempt another connection
+ */
 void controlled(BLEDevice peripheral){
   Serial.println("attempting to connect to device...");
 
@@ -72,6 +128,8 @@ void controlled(BLEDevice peripheral){
   
   //loop while connected
   while (peripheral.connected()){
+    //allow movement while connected
+    SAFETY = true;
   
     throttleCharacteristic1.readValue(throttle1);
 
@@ -84,6 +142,9 @@ void controlled(BLEDevice peripheral){
     MOTOR_2_DRIVE = throttle2;
     
   }
+
+  //stop movement if disconnected
+  SAFETY = false;
 
   Serial.println("Peripheral Disconnected");
   return;
@@ -131,6 +192,82 @@ void BLEconnection(){
   
 }
 
+void testMotors(){
+    /*
+     * test motor 1 for 0-255 speed forward 
+     */
+
+
+  //Ramp up and down motor 1 forward speed
+  
+  for (int i=MOTOR_MIN;i<256;i++){
+    analogWrite(MOTOR_1_FWD_PIN,i);
+    delay(75);
+  }
+  
+  for (int i=255;i>=0;i--){
+
+    if (i < MOTOR_MIN){
+      analogWrite(MOTOR_1_FWD_PIN,0);
+      break;
+    } else {
+      analogWrite(MOTOR_1_FWD_PIN,i);
+      delay(75);
+    }
+  }
+
+   //ramp up and down motor 1 reverse speed
+  for (int i=MOTOR_MIN;i<256;i++){
+    analogWrite(MOTOR_1_RV_PIN,i);
+    delay(75);
+  }
+  
+  for (int i=255;i>=0;i--){
+    if (i< MOTOR_MIN){
+      analogWrite(MOTOR_1_RV_PIN,0);
+      break;
+    } else {
+      analogWrite(MOTOR_1_RV_PIN,i);
+      delay(75);
+    }
+  }
+
+
+  //ramp up and dowm motor 2 forward speed
+ 
+  for (int i=MOTOR_MIN;i<256;i++){
+    analogWrite(MOTOR_2_FWD_PIN,i);
+    delay(75);
+  }
+  for (int i=255;i>=0;i--){
+    if (i < MOTOR_MIN){
+      analogWrite(MOTOR_2_FWD_PIN,0);
+      break;
+    } else { 
+      analogWrite(MOTOR_2_FWD_PIN,i);
+      delay(75);
+    }
+  }
+  //ramp up and down motor 2 reverse speed
+  for (int i=MOTOR_MIN;i<256;i++){
+    analogWrite(MOTOR_2_RV_PIN,i);
+    delay(75);
+  }
+  for (int i=255;i>=0;i--){
+
+    if (i < MOTOR_MIN){
+      analogWrite(MOTOR_2_RV_PIN,0);
+      break;
+    } else {
+      analogWrite(MOTOR_2_RV_PIN,i);
+      delay(75);
+    }
+  }
+
+  return;
+     
+}
+
 
 
 
@@ -158,20 +295,16 @@ int BLEinit(){
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-
-  pinMode(MOTOR_1_FWD_PIN,OUTPUT);
-  pinMode(MOTOR_1_RV_PIN,OUTPUT);
-  pinMode(MOTOR_2_FWD_PIN,OUTPUT);
-  pinMode(MOTOR_2_FWD_PIN,OUTPUT);
-
-  //digitalWrite(MOTOR_1_RV_PIN,LOW);
-  //digitalWrite(MOTOR_2_RV_PIN,LOW);
-  analogWrite(MOTOR_1_RV_PIN,100);
+  analogWrite(MOTOR_1_RV_PIN,0);
   analogWrite(MOTOR_2_RV_PIN,0);
+  analogWrite(MOTOR_1_FWD_PIN,0);
+  analogWrite(MOTOR_2_FWD_PIN,0);
 
+  delay(2000);
 
+  //analogWrite(MOTOR_1_RV_PIN,60);
   //use scheduler to run bluetooth config here?
-
+  testMotors();
 }
 
 void loop() {
