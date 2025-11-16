@@ -16,6 +16,9 @@ type of user input which should include:
 - Button press (Green)
 - Button press (Blue)
   */
+static const constexpr char *CENTRAL_NAME = "DUCKS_Central";
+static const constexpr char *CENTRAL_ADDRESS = "f4:12:fa:6d:71:2d";
+
 static const constexpr char *CONTROLLER_UUID = "547b5676-0377-480f-b6f8-2a94873c07ec";
 static const constexpr char *THUMB_STICK_X_AXIS_UUID = "5b03b0ef-c8db-4ef0-adf6-09e23d41a68d";
 static const constexpr char *THUMB_STICK_Y_AXIS_UUID = "b1169c28-5e12-4213-a4ff-0aa316f233cc";
@@ -123,14 +126,14 @@ void initialization_error_loop()
     }
 }
 
-void indicate_bluetooth_connection(BLEDevice robot_device){
+void indicate_bluetooth_connection(BLEDevice central_device){
     digitalWrite(BLUETOOTH_STATUS_LED, HIGH);
-    Serial.println("Connected to the robot at: " + robot_device.address());
+    Serial.println("Connected to the central_device at: " + central_device.address());
 }
 
-void indicate_bluetooth_disconnection(BLEDevice robot_device){
+void indicate_bluetooth_disconnection(BLEDevice central_device){
     digitalWrite(BLUETOOTH_STATUS_LED, LOW);
-    Serial.print("Disconnected from robot_device: " + robot_device.address());
+    Serial.println("Disconnected from central_device: " + central_device.address());
 }
 
 void update_controller_state(){
@@ -199,13 +202,20 @@ void loop()
 
     long previous_time = 0;
 
-    BLEDevice robot_device = BLE.central(); // hang out here and wait for something to connect
+    BLEDevice central_device = BLE.central(); // hang out here and wait for something to connect
+    
+    if (central_device){
 
-    if (robot_device){
+        if (central_device.address() == CENTRAL_ADDRESS){
+            Serial.println("Found the correct central device!");
+            indicate_bluetooth_connection(central_device);
+        } else {
+            Serial.println("The address was: " + central_device.address());
+            central_device.disconnect();
+        }
         
-        indicate_bluetooth_connection(robot_device);
-
-        while (robot_device.connected()) {
+    
+        while (central_device.connected()) {
             long current_time = millis();
             if (current_time - previous_time >= 200) {
                 previous_time = current_time;
@@ -215,7 +225,8 @@ void loop()
 
         }
 
-        indicate_bluetooth_disconnection(robot_device);
+        indicate_bluetooth_disconnection(central_device);
+        BLE.advertise();
 
     }
 
