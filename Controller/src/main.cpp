@@ -25,9 +25,19 @@ static const constexpr char *RED_BUTTON_UUID = "6db0dbd7-8830-4e3d-b885-baf0e4c7
 static const constexpr char *GREEN_BUTTON_UUID = "ec339d10-06c3-4ad0-80dc-0066f0fea2b9";
 static const constexpr char *BLUE_BUTTON_UUID = "473abf6f-2591-427d-9ae9-9546d01e2287";
 
-BLEService controllerService(CONTROLLER_UUID);
+BLEService controller_service(CONTROLLER_UUID);
 
-// Define all of the pin outs for this sketch
+BLEIntCharacteristic thumb_stick_x_axis_characteristic(THUMB_STICK_X_AXIS_UUID, BLERead | BLENotify);
+BLEIntCharacteristic thumb_stick_y_axis_characteristic(THUMB_STICK_Y_AXIS_UUID, BLERead | BLENotify);
+BLEByteCharacteristic thumb_stick_button_characteristic(THUMB_STICK_BUTTON_UUID, BLERead | BLENotify);
+BLEByteCharacteristic yellow_button_characteristic(YELLOW_BUTTON_UUID, BLERead | BLENotify);
+BLEByteCharacteristic red_button_characteristic(RED_BUTTON_UUID, BLERead | BLENotify);
+BLEByteCharacteristic green_button_characteristic(GREEN_BUTTON_UUID, BLERead | BLENotify);
+BLEByteCharacteristic blue_button_characteristic(BLUE_BUTTON_UUID, BLERead | BLENotify);
+
+
+// Define all of the pin outs for this sketch:
+
 static const constexpr int ANALOG_PIN_0 = A0;
 static const constexpr int ANALOG_PIN_1 = A1;
 
@@ -37,6 +47,10 @@ static const constexpr int DIGITAL_PIN_4 = 4;
 static const constexpr int DIGITAL_PIN_5 = 5;
 static const constexpr int DIGITAL_PIN_6 = 6;
 
+static const constexpr int DIGITAL_PIN_7 = 7;
+static const constexpr int DIGITAL_PIN_8 = 8;
+
+
 static const constexpr int THUMB_STICK_X_AXIS = ANALOG_PIN_0;
 static const constexpr int THUMB_STICK_Y_AXIS = ANALOG_PIN_1;
 static const constexpr int THUMB_STICK_BUTTON = DIGITAL_PIN_2;
@@ -45,6 +59,21 @@ static const constexpr int YELLOW_BUTTON = DIGITAL_PIN_3;
 static const constexpr int RED_BUTTON = DIGITAL_PIN_4;
 static const constexpr int GREEN_BUTTON = DIGITAL_PIN_5;
 static const constexpr int BLUE_BUTTON = DIGITAL_PIN_6;
+
+static const constexpr int BLUETOOTH_STATUS_LED = DIGITAL_PIN_7;
+static const constexpr int POWER_STATUS_LED = DIGITAL_PIN_8;
+
+// Define constants for the IO ports
+
+static const constexpr int BUTTON_PRESSED = LOW;
+static const constexpr int BUTTON_BOT_PRESSED = HIGH;
+
+static const constexpr int JOYSTICK_MIN = 0;
+static const constexpr int JOYSTICK_MAX = 0xFFF;
+static const constexpr int JOYSTICK_MIDDLE = JOYSTICK_MAX / 2;
+
+static const constexpr int BUTTON_DEFAULT = BUTTON_BOT_PRESSED;
+static const constexpr int JOYSTICK_DEFAULT = JOYSTICK_MIDDLE;
 
 
 inline void setup_pin_configurations()
@@ -58,16 +87,8 @@ inline void setup_pin_configurations()
     pinMode(BLUE_BUTTON, INPUT_PULLUP);
 }
 
-void setup()
+void serial_debug_inputs()
 {
-    Serial.begin(9600);
-    setup_pin_configurations();
-}
-
-void loop()
-{
-    // put your main code here, to run repeatedly:
-
     int x_axis = analogRead(THUMB_STICK_X_AXIS);
     int y_axis = analogRead(THUMB_STICK_Y_AXIS);
     int thumb_stick_button = digitalRead(THUMB_STICK_BUTTON);
@@ -84,6 +105,120 @@ void loop()
     Serial.println("The green_button is: " + String(green_button));
     Serial.println("The blue_button is: " + String(blue_button));
     Serial.println();
-
-    delay(500);
 }
+
+// Called when a core component fails to initialize
+// Pulsates the power LED forever indicating to the user that something went wrong
+void initialization_error_loop()
+{
+    const int two_hundred_milliseconds = 200;
+
+    digitalWrite(BLUETOOTH_STATUS_LED, 0);
+    bool error_led_on = false;
+    while (true){
+        error_led_on = true;
+        digitalWrite(POWER_STATUS_LED, error_led_on);
+        error_led_on = !error_led_on;
+        delay(two_hundred_milliseconds);
+    }
+}
+
+void indicate_bluetooth_connection(BLEDevice robot_device){
+    digitalWrite(BLUETOOTH_STATUS_LED, HIGH);
+    Serial.println("Connected to the robot at: " + robot_device.address());
+}
+
+void indicate_bluetooth_disconnection(BLEDevice robot_device){
+    digitalWrite(BLUETOOTH_STATUS_LED, LOW);
+    Serial.print("Disconnected from robot_device: " + robot_device.address());
+}
+
+void update_controller_state(){
+
+    int x_axis = analogRead(THUMB_STICK_X_AXIS);
+    int y_axis = analogRead(THUMB_STICK_Y_AXIS);
+    int thumb_stick_button = digitalRead(THUMB_STICK_BUTTON);
+    int yellow_button = digitalRead(YELLOW_BUTTON);
+    int red_button = digitalRead(RED_BUTTON);
+    int green_button = digitalRead(GREEN_BUTTON);
+    int blue_button = digitalRead(BLUE_BUTTON);
+
+    thumb_stick_x_axis_characteristic.writeValue(x_axis);
+    thumb_stick_y_axis_characteristic.writeValue(y_axis);
+    thumb_stick_button_characteristic.writeValue(thumb_stick_button);
+    yellow_button_characteristic.writeValue(yellow_button);
+    red_button_characteristic.writeValue(red_button);
+    green_button_characteristic.writeValue(green_button);
+    blue_button_characteristic.writeValue(blue_button);
+}
+
+
+void setup()
+{
+    Serial.begin(9600);
+    while (!Serial);
+
+    setup_pin_configurations();
+
+    if (!BLE.begin()) {
+        Serial.println("ERROR: Failed to initialize bluetooth low energy.");
+        initialization_error_loop();
+    }
+
+    BLE.setLocalName("DUCKS_Controller");
+    BLE.setAdvertisedService(controller_service);
+    BLE.setDeviceName("DUCKS_Controller");
+
+    controller_service.addCharacteristic(thumb_stick_x_axis_characteristic);
+    controller_service.addCharacteristic(thumb_stick_y_axis_characteristic);
+    controller_service.addCharacteristic(thumb_stick_button_characteristic);
+    controller_service.addCharacteristic(yellow_button_characteristic);
+    controller_service.addCharacteristic(red_button_characteristic);
+    controller_service.addCharacteristic(green_button_characteristic);
+    controller_service.addCharacteristic(blue_button_characteristic);
+
+    BLE.addService(controller_service);
+
+    // write defaults values to the characteristics to start
+    thumb_stick_x_axis_characteristic.writeValue(JOYSTICK_DEFAULT);
+    thumb_stick_y_axis_characteristic.writeValue(JOYSTICK_DEFAULT);
+    thumb_stick_button_characteristic.writeValue(BUTTON_DEFAULT);
+    yellow_button_characteristic.writeValue(BUTTON_DEFAULT);
+    red_button_characteristic.writeValue(BUTTON_DEFAULT);
+    green_button_characteristic.writeValue(BUTTON_DEFAULT);
+    blue_button_characteristic.writeValue(BUTTON_DEFAULT);
+
+    BLE.advertise();
+    Serial.println("Controller is now advertising...");
+}
+
+void loop()
+{
+    // reference: BatteryMonitor.ino sketch from ArduinoBLE/examples/Peripheral/BatteryMonitor/BatteryMonitor.ino
+    // accessed 11/15/2025
+
+    long previous_time = 0;
+
+    BLEDevice robot_device = BLE.central(); // hang out here and wait for something to connect
+
+    if (robot_device){
+        
+        indicate_bluetooth_connection(robot_device);
+
+        while (robot_device.connected()) {
+            long current_time = millis();
+            if (current_time - previous_time >= 200) {
+                previous_time = current_time;
+                update_controller_state();
+            }
+
+
+        }
+
+        indicate_bluetooth_disconnection(robot_device);
+
+    }
+
+    
+}
+
