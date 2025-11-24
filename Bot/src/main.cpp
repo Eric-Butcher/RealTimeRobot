@@ -3,17 +3,6 @@
 #include <array>
 #include <Arduino.h>
 
-
-/*
- * Values used to determine the speed at which the respective motor is driven. 
- * These values will be sent along either the foward or reverse pins depending on the signal from bluetooth. 
- * A possible way to differentiate between forward and reverse signals, is to make reverse values negative, then take the absolute value
- * before sending to pin. 
- * 
- */
-int MOTOR_1_DRIVE = 0;
-int MOTOR_2_DRIVE = 0;
-
 /*
  * Specifies minimum drive for the motors
  * Testing revealed values below this fail to drive the motors.
@@ -26,6 +15,12 @@ int MOTOR_2_DRIVE = 0;
  */
 int MOTOR_MIN = 70;
 
+//defines a deadzone area where input is ignored
+int DEAD_ZONE_POS = 2058;
+int DEAD_ZONE_NEG = 2038;
+
+
+//motor 1 is right motor, motor 2 left
 int MOTOR_1_FWD_PIN = 7;
 int MOTOR_1_RV_PIN = 6;
 
@@ -54,6 +49,25 @@ typedef enum Result {
   FAILURE
 };
 
+/*
+ * Forward right
+ * Forward left,
+ * Forward,
+ * Reverse right
+ * Reverse left,
+ * Reverse,
+ * stationary
+ */
+typedef enum Direction {
+  FR,
+  FL,
+  FA,
+  RR,
+  RL,
+  RA,
+  S
+};
+
 
 struct ControllerState {
   int thumb_stick_x_axis;
@@ -66,44 +80,92 @@ struct ControllerState {
 };
 
 /*
- * Takes drive information, and handles motor control with it. 
+ * Stops all motor movement 
  */
-void motor_Driver(){
+void STOP(){
+  analogWrite(MOTOR_1_RV_PIN,0);
+  analogWrite(MOTOR_1_FWD_PIN,0);
+  analogWrite(MOTOR_2_RV_PIN,0);
+  analogWrite(MOTOR_2_FWD_PIN,0);
+  return;
+}
 
-  
-  while (true){
-    
-    /*
-    //motor 1 drive
-    if (ControllerState.thumb_stick_y_axis > 1000){
-      analogWrite(MOTOR_1_FWD_PIN,0);
-      analogWrite(MOTOR_1_RV_PIN,255);
-    } else if (ControllerState.thumb_stick_y_axis < 1000) {
-      analogWrite(MOTOR_1_RV_PIN,0);
-      analogWrite(MOTOR_1_FWD_PIN,255);
+/*
+ * Stops reverse drive 
+ */
+void STOP_RV(){
+  analogWrite(MOTOR_1_RV_PIN,0);
+  analogWrite(MOTOR_2_RV_PIN,0);
+  return;
+}
+
+/*
+ * Stops forward drive 
+ */
+void STOP_FWD(){
+  analogWrite(MOTOR_1_FWD_PIN,0);
+  analogWrite(MOTOR_2_FWD_PIN,0);
+  return;
+}
+
+//gets current direction of robot based on controller input data
+Direction get_direction(ControllerState *state){
+  if (state->thumb_stick_y_axis > DEAD_ZONE_POS){
+       if (state->thumb_stick_x_axis > DEAD_ZONE_POS){
+        //moving forward and to right
+        return FR;
+       } else if (state->thumb_stick_x_axis < DEAD_ZONE_NEG){
+        //moving forward and to left
+        return FL;
+       }else {
+        //moving directly forward
+        return FA;
+       }
+    } else if (state->thumb_stick_y_axis < DEAD_ZONE_NEG){
+      if (state->thumb_stick_x_axis > DEAD_ZONE_POS){
+        //moving forward and to right
+        return RR;
+       } else if (state->thumb_stick_x_axis < DEAD_ZONE_NEG){
+        //moving forward and to left
+        return RL;
+       }else {
+        //moving directly forward
+        return RA;
+       }
     } else {
-      analogWrite(MOTOR_1_RV_PIN,0);
-      analogWrite(MOTOR_1_FWD_PIN,0);
+      return S;
     }
-    */
-    /*
-    //motor 2 drive
-    if (MOTOR_2_DRIVE < 0){
-      analogWrite(MOTOR_2_FWD_PIN,0);
-      analogWrite(MOTOR_2_RV_PIN,abs(MOTOR_2_DRIVE));
-    } else {
-      analogWrite(MOTOR_2_RV_PIN,0);
-      analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
-    }
-  */
-    
+    return S;
+}
+
+/*
+ * Takes the input data and converts it to usable drive values
+ * 
+ * Returns converted value
+ * 
+ * Takes raw input value, and if value is for reverse direction
+ */
+int converter(int input,bool reverse){
+  //convert new value based on if input is in fwd or negative direction
+  //equation for conversion:
+  //outputStart + ((outputEnd - outputStart) / (inputEnd - inputStart)) * (input - inputStart)
+  if (reverse){
+    return floor((70+((255-70) / (0-2038)) * (input-2038)));
+  } else {
+    return floor((70+((255-70) / (4096-2058)) * (input-2058)));
   }
-  //stop all motor movement if safety fails
+
+
+  return 0;
   
 }
 
 
 
+
+/*
+ * Takes drive information, and handles motor control with it. 
+ */
 Result subscribe_to_characteristics(std::array<BLECharacteristic, NUMBER_OF_CHARACTERISTICS> characteristics){
   for (int i = 0; i < characteristics.size(); ++i){
       BLECharacteristic characteristic = characteristics[i];
@@ -126,14 +188,67 @@ Result subscribe_to_characteristics(std::array<BLECharacteristic, NUMBER_OF_CHAR
   return SUCCESSFULL;
 }
 
+void one_stick_operation(ControllerState *controller_state){
+  Direction current_direction = get_direction(controller_state);
+  //just skip if not being moved
+  if (current_direction == S){
+    STOP();
+    return;
+  }
 
+  int MOTOR_1_DRIVE=0;
+  int MOTOR_2_DRIVE=0;
+  switch (current_direction){
+    case (FA):
+      STOP_RV();
+      MOTOR_1_DRIVE = converter(controller_state->thumb_stick_y_axis,false);
+      MOTOR_2_DRIVE = MOTOR_1_DRIVE;
+      analogWrite(MOTOR_1_FWD_PIN,MOTOR_1_DRIVE);
+      analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
+      break;
+    case (FR):
+      STOP_RV();
+      MOTOR_2_DRIVE = converter(controller_state->thumb_stick_y_axis,false);
+      MOTOR_1_DRIVE = MOTOR_2_DRIVE - converter(controller_state->thumb_stick_x_axis,false);
+      analogWrite(MOTOR_1_FWD_PIN,MOTOR_1_DRIVE);
+      analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
+      break;           
+    case (FL):
+      STOP_RV();
+      MOTOR_1_DRIVE = converter(controller_state->thumb_stick_y_axis,false);
+      MOTOR_2_DRIVE = MOTOR_1_DRIVE - converter(controller_state->thumb_stick_x_axis,true);
+      analogWrite(MOTOR_1_FWD_PIN,MOTOR_1_DRIVE);
+      analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
+      break;
+    case (RA):
+      STOP_FWD();
+      MOTOR_1_DRIVE = converter(controller_state->thumb_stick_y_axis,true);
+      MOTOR_2_DRIVE = MOTOR_1_DRIVE;
+      analogWrite(MOTOR_1_RV_PIN,MOTOR_1_DRIVE);
+      analogWrite(MOTOR_2_RV_PIN,MOTOR_2_DRIVE);
+      break;
+    case (RR):
+      STOP_FWD();
+      MOTOR_2_DRIVE = converter(controller_state->thumb_stick_y_axis,true);
+      MOTOR_1_DRIVE = MOTOR_2_DRIVE - converter(controller_state->thumb_stick_x_axis,false);
+      analogWrite(MOTOR_1_RV_PIN,MOTOR_1_DRIVE);
+      analogWrite(MOTOR_2_RV_PIN,MOTOR_2_DRIVE);
+      break;
+    case (RL):
+      STOP_FWD();
+      MOTOR_1_DRIVE = converter(controller_state->thumb_stick_y_axis,true);
+      MOTOR_2_DRIVE = MOTOR_1_DRIVE - converter(controller_state->thumb_stick_x_axis,true);
+      analogWrite(MOTOR_1_RV_PIN,MOTOR_1_DRIVE);
+      analogWrite(MOTOR_2_RV_PIN,MOTOR_2_DRIVE);
+    
+  }
+  
+}
 
 /*
  * Maintains connection to bluetooth peripheral, 
  * and retrieves throttle information. Will continuously update readings
  * as long as connection holds. 
- * 
- * Motor throttle information is stored in drive global variables
  * 
  * If connection drops, will return back to BLEconnection to attempt another connection
  */
@@ -222,37 +337,73 @@ void controlled(BLEDevice peripheral){
     Serial.println("The green_button is: " + String(controller_state.green_button));
     Serial.println("The blue_button is: " + String(controller_state.blue_button));
     Serial.println();
+    
+    /*
+     * DO ANY DATA PROCESSING HERE!!!!!!!!!!!!!!!!! 
+     */
 
-
-    //THIS SETS THE MOTOR SPEED BASED ON THE JOYSTICK INPUT
-    //RIGHT NOW IT JUST SIMPLY SETS TO MAX AT A CERTAIN POINT
-    if (controller_state.thumb_stick_y_axis > 3000){
-      analogWrite(MOTOR_1_FWD_PIN,0);
-      analogWrite(MOTOR_1_RV_PIN,255);
-      analogWrite(MOTOR_2_FWD_PIN,0);
-      analogWrite(MOTOR_2_RV_PIN,255);
-    } else if (controller_state.thumb_stick_y_axis < 1000) {
-      analogWrite(MOTOR_1_RV_PIN,0);
-      analogWrite(MOTOR_2_RV_PIN,0);
-      analogWrite(MOTOR_1_FWD_PIN,255);
-      analogWrite(MOTOR_2_FWD_PIN,255);
-    } else {
-      analogWrite(MOTOR_1_RV_PIN,0);
-      analogWrite(MOTOR_1_FWD_PIN,0);
-      analogWrite(MOTOR_2_RV_PIN,0);
-      analogWrite(MOTOR_2_FWD_PIN,0);
+    
+    Direction current_direction = get_direction(&controller_state);
+    //just skip if not being moved
+    if (current_direction == S){
+      STOP();
+      continue;
     }
 
+    int MOTOR_1_DRIVE=0;
+    int MOTOR_2_DRIVE=0;
+    switch (current_direction){
+      case (FA):
+        STOP_RV();
+        MOTOR_1_DRIVE = converter(controller_state.thumb_stick_y_axis,false);
+        MOTOR_2_DRIVE = MOTOR_1_DRIVE;
+        analogWrite(MOTOR_1_FWD_PIN,MOTOR_1_DRIVE);
+        analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
+        break;
+      case (FR):
+        STOP_RV();
+        MOTOR_2_DRIVE = converter(controller_state.thumb_stick_y_axis,false);
+        MOTOR_1_DRIVE = MOTOR_2_DRIVE - converter(controller_state.thumb_stick_x_axis,false);
+        analogWrite(MOTOR_1_FWD_PIN,MOTOR_1_DRIVE);
+        analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
+        break;           
+      case (FL):
+        STOP_RV();
+        MOTOR_1_DRIVE = converter(controller_state.thumb_stick_y_axis,false);
+        MOTOR_2_DRIVE = MOTOR_1_DRIVE - converter(controller_state.thumb_stick_x_axis,true);
+        analogWrite(MOTOR_1_FWD_PIN,MOTOR_1_DRIVE);
+        analogWrite(MOTOR_2_FWD_PIN,MOTOR_2_DRIVE);
+        break;
+      case (RA):
+        STOP_FWD();
+        MOTOR_1_DRIVE = converter(controller_state.thumb_stick_y_axis,true);
+        MOTOR_2_DRIVE = MOTOR_1_DRIVE;
+        analogWrite(MOTOR_1_RV_PIN,MOTOR_1_DRIVE);
+        analogWrite(MOTOR_2_RV_PIN,MOTOR_2_DRIVE);
+        break;
+      case (RR):
+        STOP_FWD();
+        MOTOR_2_DRIVE = converter(controller_state.thumb_stick_y_axis,true);
+        MOTOR_1_DRIVE = MOTOR_2_DRIVE - converter(controller_state.thumb_stick_x_axis,false);
+        analogWrite(MOTOR_1_RV_PIN,MOTOR_1_DRIVE);
+        analogWrite(MOTOR_2_RV_PIN,MOTOR_2_DRIVE);
+        break;
+      case (RL):
+        STOP_FWD();
+        MOTOR_1_DRIVE = converter(controller_state.thumb_stick_y_axis,true);
+        MOTOR_2_DRIVE = MOTOR_1_DRIVE - converter(controller_state.thumb_stick_x_axis,true);
+        analogWrite(MOTOR_1_RV_PIN,MOTOR_1_DRIVE);
+        analogWrite(MOTOR_2_RV_PIN,MOTOR_2_DRIVE);
+      
+    }
+     
 
-    
-    
-    
     
   }
 
   //stop movement if disconnected
-
-
+  
+  STOP();
   Serial.println("Peripheral Disconnected");
   return;
   
