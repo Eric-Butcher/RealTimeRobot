@@ -2,18 +2,21 @@
 #include <ArduinoBLE.h>
 #include <array>
 
-static const constexpr char *CENTRAL_NAME = "DUCKS_Central";
+static constexpr const char *CENTRAL_NAME = "DUCKS_Central";
+static constexpr const char *CENTRAL_ADDRESS = "f4:12:fa:6d:71:2d";
 
-static const constexpr char *CONTROLLER_UUID = "547b5676-0377-480f-b6f8-2a94873c07ec";
-static const constexpr char *THUMB_STICK_X_AXIS_UUID = "5b03b0ef-c8db-4ef0-adf6-09e23d41a68d";
-static const constexpr char *THUMB_STICK_Y_AXIS_UUID = "b1169c28-5e12-4213-a4ff-0aa316f233cc";
-static const constexpr char *THUMB_STICK_BUTTON_UUID = "c2dd566c-65bb-4d28-8708-227c923433cf";
-static const constexpr char *YELLOW_BUTTON_UUID = "b273ac1b-e05f-4e47-a508-6c87d89e46eb";
-static const constexpr char *RED_BUTTON_UUID = "6db0dbd7-8830-4e3d-b885-baf0e4c75d93";
-static const constexpr char *GREEN_BUTTON_UUID = "ec339d10-06c3-4ad0-80dc-0066f0fea2b9";
-static const constexpr char *BLUE_BUTTON_UUID = "473abf6f-2591-427d-9ae9-9546d01e2287";
-
-static const constexpr int NUMBER_OF_CHARACTERISTICS = 7;
+static constexpr const char *CONTROLLER_UUID = "547b5676-0377-480f-b6f8-2a94873c07ec";
+static constexpr const char *LEFT_THUMB_STICK_X_AXIS_UUID = "5b03b0ef-c8db-4ef0-adf6-09e23d41a68d";
+static constexpr const char *LEFT_THUMB_STICK_Y_AXIS_UUID = "b1169c28-5e12-4213-a4ff-0aa316f233cc";
+static constexpr const char *LEFT_THUMB_STICK_BUTTON_UUID = "c2dd566c-65bb-4d28-8708-227c923433cf";
+static constexpr const char *RIGHT_THUMB_STICK_X_AXIS_UUID = "37aa7d87-3161-4b8a-8f84-afddaf53ced3";
+static constexpr const char *RIGHT_THUMB_STICK_Y_AXIS_UUID = "88d80b83-dcf1-47cf-b7dd-6b8c6d01b072";
+static constexpr const char *RIGHT_THUMB_STICK_BUTTON_UUID = "c817eaef-8d21-4df8-a7d7-a4e27c63b390";
+static constexpr const char *YELLOW_BUTTON_UUID = "b273ac1b-e05f-4e47-a508-6c87d89e46eb";
+static constexpr const char *RED_BUTTON_UUID = "6db0dbd7-8830-4e3d-b885-baf0e4c75d93";
+static constexpr const char *GREEN_BUTTON_UUID = "ec339d10-06c3-4ad0-80dc-0066f0fea2b9";
+static constexpr const char *BLUE_BUTTON_UUID = "473abf6f-2591-427d-9ae9-9546d01e2287";
+static constexpr int NUMBER_OF_CHARACTERISTICS = 10;
 
 typedef enum Result {
     SUCCESS,
@@ -21,9 +24,12 @@ typedef enum Result {
 };
 
 struct ControllerState {
-    int thumb_stick_x_axis;
-    int thumb_stick_y_axis;
-    byte thumb_stick_button;
+    int left_thumb_stick_x_axis;
+    int left_thumb_stick_y_axis;
+    int right_thumb_stick_x_axis;
+    int right_thumb_stick_y_axis;
+    byte left_thumb_stick_button;
+    byte right_thumb_stick_button;
     byte yellow_button;
     byte red_button;
     byte green_button;
@@ -78,9 +84,12 @@ void monitor_controller_state(BLEDevice controller)
     }
     BLEService controller_service = controller.service(CONTROLLER_UUID);
 
-    BLECharacteristic thumb_stick_x_axis_characteristic = controller.characteristic(THUMB_STICK_X_AXIS_UUID);
-    BLECharacteristic thumb_stick_y_axis_characteristic = controller.characteristic(THUMB_STICK_Y_AXIS_UUID);
-    BLECharacteristic thumb_stick_button_characteristic = controller.characteristic(THUMB_STICK_BUTTON_UUID);
+    BLECharacteristic left_thumb_stick_x_axis_characteristic = controller.characteristic(LEFT_THUMB_STICK_X_AXIS_UUID);
+    BLECharacteristic left_thumb_stick_y_axis_characteristic = controller.characteristic(LEFT_THUMB_STICK_Y_AXIS_UUID);
+    BLECharacteristic left_thumb_stick_button_characteristic = controller.characteristic(LEFT_THUMB_STICK_BUTTON_UUID);
+    BLECharacteristic right_thumb_stick_x_axis_characteristic = controller.characteristic(RIGHT_THUMB_STICK_X_AXIS_UUID);
+    BLECharacteristic right_thumb_stick_y_axis_characteristic = controller.characteristic(RIGHT_THUMB_STICK_Y_AXIS_UUID);
+    BLECharacteristic right_thumb_stick_button_characteristic = controller.characteristic(RIGHT_THUMB_STICK_BUTTON_UUID);
     BLECharacteristic yellow_button_characteristic = controller.characteristic(YELLOW_BUTTON_UUID);
     BLECharacteristic red_button_characteristic = controller.characteristic(RED_BUTTON_UUID);
     BLECharacteristic green_button_characteristic = controller.characteristic(GREEN_BUTTON_UUID);
@@ -96,9 +105,12 @@ void monitor_controller_state(BLEDevice controller)
 
 
     std::array<BLECharacteristic, NUMBER_OF_CHARACTERISTICS> characteristics = {
-        thumb_stick_x_axis_characteristic,
-        thumb_stick_y_axis_characteristic,
-        thumb_stick_button_characteristic,
+        left_thumb_stick_x_axis_characteristic,
+        left_thumb_stick_y_axis_characteristic,
+        left_thumb_stick_button_characteristic,
+        right_thumb_stick_x_axis_characteristic,
+        right_thumb_stick_y_axis_characteristic,
+        right_thumb_stick_button_characteristic,
         yellow_button_characteristic,
         red_button_characteristic,
         green_button_characteristic,
@@ -122,15 +134,26 @@ void monitor_controller_state(BLEDevice controller)
             continue;
         }
         
-        if (thumb_stick_x_axis_characteristic.valueUpdated()){
-            thumb_stick_x_axis_characteristic.readValue(&controller_state.thumb_stick_x_axis, sizeof(int));
+        if (left_thumb_stick_x_axis_characteristic.valueUpdated()){
+            left_thumb_stick_x_axis_characteristic.readValue(&controller_state.left_thumb_stick_x_axis, sizeof(int));
         } 
-        if (thumb_stick_y_axis_characteristic.valueUpdated()){
-            thumb_stick_y_axis_characteristic.readValue(&controller_state.thumb_stick_y_axis, sizeof(int));
+        if (left_thumb_stick_y_axis_characteristic.valueUpdated()){
+            left_thumb_stick_y_axis_characteristic.readValue(&controller_state.left_thumb_stick_y_axis, sizeof(int));
         } 
-        if (thumb_stick_button_characteristic.valueUpdated()){
-            thumb_stick_button_characteristic.readValue(&controller_state.thumb_stick_button, sizeof(byte));
+        if (left_thumb_stick_button_characteristic.valueUpdated()){
+            left_thumb_stick_button_characteristic.readValue(&controller_state.left_thumb_stick_button, sizeof(byte));
+        }
+
+        if (right_thumb_stick_x_axis_characteristic.valueUpdated()){
+            right_thumb_stick_x_axis_characteristic.readValue(&controller_state.right_thumb_stick_x_axis, sizeof(int));
         } 
+        if (right_thumb_stick_y_axis_characteristic.valueUpdated()){
+            right_thumb_stick_y_axis_characteristic.readValue(&controller_state.right_thumb_stick_y_axis, sizeof(int));
+        } 
+        if (right_thumb_stick_button_characteristic.valueUpdated()){
+            right_thumb_stick_button_characteristic.readValue(&controller_state.right_thumb_stick_button, sizeof(byte));
+        } 
+
         if (yellow_button_characteristic.valueUpdated()){
             yellow_button_characteristic.readValue(&controller_state.yellow_button, sizeof(byte));
         } 
@@ -144,14 +167,13 @@ void monitor_controller_state(BLEDevice controller)
             blue_button_characteristic.readValue(&controller_state.blue_button, sizeof(byte));
         } 
 
-        Serial.println("The x_axis is: " + String(controller_state.thumb_stick_x_axis));
-        Serial.println("The y_axis is: " + String(controller_state.thumb_stick_y_axis));
-        Serial.println("The thumb_stick_button is: " + String(controller_state.thumb_stick_button));
-        Serial.println("The yellow_button is: " + String(controller_state.yellow_button));
-        Serial.println("The red_button is: " + String(controller_state.red_button));
-        Serial.println("The green_button is: " + String(controller_state.green_button));
-        Serial.println("The blue_button is: " + String(controller_state.blue_button));
-        Serial.println();
+        Serial.print("The left_x_axis is: " + String(controller_state.left_thumb_stick_x_axis) + "The right_x_axis is: " + String(controller_state.right_thumb_stick_x_axis)+ "\n");
+        Serial.print("The left_y_axis is: " + String(controller_state.left_thumb_stick_y_axis) + "The right_y_axis is: " + String(controller_state.right_thumb_stick_y_axis)+ "\n");
+        Serial.print("The left_thumb_stick_button is: " + String(controller_state.left_thumb_stick_button) + "The right_thumb_stick_button is: " + String(controller_state.right_thumb_stick_button)+ "\n");
+        Serial.print("The yellow_button is: " + String(controller_state.yellow_button)+ "\n");
+        Serial.print("The red_button is: " + String(controller_state.red_button)+ "\n");
+        Serial.print("The green_button is: " + String(controller_state.green_button)+ "\n");
+        Serial.print("The blue_button is: " + String(controller_state.blue_button)+ "\n");
     }
  
     return;
@@ -161,8 +183,9 @@ void monitor_controller_state(BLEDevice controller)
 void setup()
 {
     Serial.begin(9600);
+    
     while (!Serial);
-
+    Serial.println("Hellooooooo.");
     if (!BLE.begin())
     {
         Serial.println("ERROR: Failed to initialize bluetooth low energy.");
