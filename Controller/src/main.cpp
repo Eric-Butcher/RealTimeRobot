@@ -82,6 +82,8 @@ inline void setup_pin_configurations()
     pinMode(RED_BUTTON, INPUT_PULLUP);
     pinMode(GREEN_BUTTON, INPUT_PULLUP);
     pinMode(BLUE_BUTTON, INPUT_PULLUP);
+    pinMode(POWER_STATUS_LED, OUTPUT);
+    pinMode(BLUETOOTH_STATUS_LED, OUTPUT);
 }
 
 void serial_debug_inputs()
@@ -210,7 +212,7 @@ void setup()
     right_thumb_stick_x_axis_characteristic.writeValue(JOYSTICK_DEFAULT);
     right_thumb_stick_y_axis_characteristic.writeValue(JOYSTICK_DEFAULT);
     right_thumb_stick_button_characteristic.writeValue(BUTTON_DEFAULT);
-    
+
     yellow_button_characteristic.writeValue(BUTTON_DEFAULT);
     red_button_characteristic.writeValue(BUTTON_DEFAULT);
     green_button_characteristic.writeValue(BUTTON_DEFAULT);

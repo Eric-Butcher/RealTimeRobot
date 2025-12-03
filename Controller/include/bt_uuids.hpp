@@ -12,8 +12,11 @@ type of user input which should include:
 - Button press (Green)
 - Button press (Blue)
   */
+
 static constexpr const char *CENTRAL_NAME = "DUCKS_Central";
-static constexpr const char *CENTRAL_ADDRESS = "f4:12:fa:6d:71:2d";
+// static constexpr const char *CENTRAL_ADDRESS = "f4:12:fa:6d:71:2d"; // test address
+static constexpr const char *CENTRAL_ADDRESS = "a8:61:0a:43:64:38"; // giga robot address
+
 
 static constexpr const char *CONTROLLER_UUID = "547b5676-0377-480f-b6f8-2a94873c07ec";
 static constexpr const char *LEFT_THUMB_STICK_X_AXIS_UUID = "5b03b0ef-c8db-4ef0-adf6-09e23d41a68d";
