@@ -82,6 +82,10 @@ inline void setup_pin_configurations()
     pinMode(RED_BUTTON, INPUT_PULLUP);
     pinMode(GREEN_BUTTON, INPUT_PULLUP);
     pinMode(BLUE_BUTTON, INPUT_PULLUP);
+
+    pinMode(POWER_STATUS_LED,OUTPUT);
+    pinMode(BLUETOOTH_STATUS_LED,OUTPUT);
+    
 }
 
 void serial_debug_inputs()
